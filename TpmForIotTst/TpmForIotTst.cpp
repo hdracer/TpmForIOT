@@ -10,10 +10,11 @@ extern void DllInit();
 //
 // Open the Storage Root Key
 //
-TPM_HANDLE MakeStoragePrimary(_TPMCPP Tpm2 tpm)
+TPM_HANDLE MakeStoragePrimary(_TPMCPP Tpm2 &tpm)
 {
     vector<BYTE> NullVec;
-    TPMT_PUBLIC storagePrimaryTemplate(TPM_ALG_ID::SHA1,
+    TPMT_PUBLIC storagePrimaryTemplate(
+        TPM_ALG_ID::SHA1,
         TPMA_OBJECT::decrypt | TPMA_OBJECT::restricted |
         TPMA_OBJECT::fixedParent | TPMA_OBJECT::fixedTPM |
         TPMA_OBJECT::sensitiveDataOrigin | TPMA_OBJECT::userWithAuth,
@@ -24,9 +25,12 @@ TPM_HANDLE MakeStoragePrimary(_TPMCPP Tpm2 tpm)
         TPM2B_PUBLIC_KEY_RSA(NullVec));
 
     // Create the key
-    CreatePrimaryResponse storagePrimary = tpm.CreatePrimary(tpm._AdminOwner,
-        TPMS_SENSITIVE_CREATE(NullVec, NullVec), storagePrimaryTemplate,
-        NullVec, vector<TPMS_PCR_SELECTION>());
+    CreatePrimaryResponse storagePrimary = tpm.CreatePrimary(
+        tpm._AdminOwner,
+        TPMS_SENSITIVE_CREATE(NullVec, NullVec), 
+        storagePrimaryTemplate,
+        NullVec, 
+        vector<TPMS_PCR_SELECTION>());
 
     return storagePrimary.objectHandle;
 }
@@ -35,7 +39,7 @@ TPM_HANDLE MakeStoragePrimary(_TPMCPP Tpm2 tpm)
 // Create an RSA signing key, optionally restricted (i.e., an AIK)
 //
 TPM_HANDLE MakeChildSigningKey(
-    _TPMCPP Tpm2 tpm, 
+    _TPMCPP Tpm2 &tpm, 
     TPM_HANDLE parentHandle, 
     bool restricted)
 {
@@ -46,7 +50,8 @@ TPM_HANDLE MakeChildSigningKey(
         restrictedAttribute = TPMA_OBJECT::restricted;
     }
 
-    TPMT_PUBLIC templ(TPM_ALG_ID::SHA1,
+    TPMT_PUBLIC templ(
+        TPM_ALG_ID::SHA1,
         TPMA_OBJECT::sign | TPMA_OBJECT::fixedParent |
         TPMA_OBJECT::fixedTPM | TPMA_OBJECT::sensitiveDataOrigin |
         TPMA_OBJECT::userWithAuth | restrictedAttribute,
@@ -56,7 +61,8 @@ TPM_HANDLE MakeChildSigningKey(
             TPMS_SCHEME_RSASSA(TPM_ALG_ID::SHA1), 2048, 65537), // PKCS1.5
         TPM2B_PUBLIC_KEY_RSA(NullVec));
 
-    CreateResponse newSigningKey = tpm.Create(parentHandle,
+    CreateResponse newSigningKey = tpm.Create(
+        parentHandle,
         TPMS_SENSITIVE_CREATE(),
         templ,
         NullVec,
@@ -70,7 +76,7 @@ TPM_HANDLE MakeChildSigningKey(
 // Assume that TPM ownership has been taken and that auth values are
 // non-null.
 //
-void SetPlatformAuthenticationValues(_TPMCPP Tpm2 tpm)
+void SetPlatformAuthenticationValues(_TPMCPP Tpm2 &tpm)
 {
 #ifndef __linux__
     WCHAR wszAuthReg[1024] = { 0 };
