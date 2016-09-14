@@ -151,8 +151,6 @@ void SetPlatformAuthenticationValues(_TPMCPP Tpm2 tpm)
 void AttestationForIot()
 {
     Tpm2 tpm;
-    TpmTcpDevice tcpDevice;
-    TpmTbsDevice tbsDevice;
 
     // 
     // Tell the TPM2 object where to send commands 
@@ -163,6 +161,7 @@ void AttestationForIot()
     // Connect to the Intel TSS resource manager
     //
 
+    TpmTcpDevice tcpDevice;
     if (!tcpDevice.Connect("127.0.0.1", 2323)) {
         cerr << "Could not connect to the resource manager";
         return;
@@ -173,6 +172,7 @@ void AttestationForIot()
     // Connect to the TBS
     //
 
+    TpmTbsDevice tbsDevice;
     tbsDevice.Connect();
     tpm._SetDevice(tbsDevice);
 #endif
@@ -217,6 +217,28 @@ void AttestationForIot()
         cout << "The quote was verified correctly" << endl;
     }
 
+    //
+    // Activate the restricted key
+    //
+
+    // TODO
+
+    //
+    // Create a user key
+    //
+
+    // TODO
+
+    //
+    // Either activate or attest to the user key
+    //
+
+    // TODO
+
+    //
+    // Sign some data with the user key
+    //
+    
     // TODO
 }
 

@@ -10,3 +10,13 @@
 /TSS.MSR.CPP/Samples
 /TSS.MSR.CPP/Src/.vs/TSS.CPP/v14
 /TSS.MSR.CPP/Src/ipch
+/TSS.MSR.CPP/Src/x64/Debug
+/x64/Debug
+
+*.a
+*.db
+*.dep
+*.o
+*.opendb
+*.so
+*.user
