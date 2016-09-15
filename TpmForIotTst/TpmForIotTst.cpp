@@ -157,6 +157,7 @@ void SetPlatformAuthenticationValues(_TPMCPP Tpm2 &tpm)
 void AttestationForIot()
 {
     Tpm2 tpm;
+    vector<BYTE> NullVec;
 
     // 
     // Tell the TPM2 object where to send commands 
@@ -196,26 +197,42 @@ void AttestationForIot()
     TPM_HANDLE primaryKey = MakeStoragePrimary(tpm);
     TPM_HANDLE signingKey = MakeChildSigningKey(tpm, primaryKey, true);
 
-    // First PCR-signing (quoting). We will sign PCR-7.
+    //
+    // Optionally, save the AIK, since it can be reused across reboots
+    //
+
+    // TODO
+
+    //
+    // Read PCR data
+    //
+
     cout << ">> PCR Quoting" << endl;
     auto pcrsToQuote = TPMS_PCR_SELECTION::GetSelectionArray(TPM_ALG_ID::SHA1, 7);
-
-    // Then read the value so that we can validate the signature later
     PCR_ReadResponse pcrVals = tpm.PCR_Read(pcrsToQuote);
 
-    // Do the quote.  Note that we provide a nonce.
-    ByteVec Nonce = CryptoServices::GetRand(16);
-    QuoteResponse quote = tpm.Quote(signingKey, Nonce, TPMS_NULL_SIG_SCHEME(), pcrsToQuote);
+    //
+    // Simulate retrieving a Nonce from the server
+    //
 
-    // Need to cast to the proper attestion type to validate
+    ByteVec Nonce = CryptoServices::GetRand(16);
+
+    //
+    // Sign the PCR has with the AIK
+    //
+
+    QuoteResponse quote = tpm.Quote(
+        signingKey, Nonce, TPMS_NULL_SIG_SCHEME(), pcrsToQuote);
+
+    //
+    // Simulate verifying the quote at the server
+    //
+
     TPMS_ATTEST qAttest = quote.quoted;
     TPMS_QUOTE_INFO *qInfo = dynamic_cast<TPMS_QUOTE_INFO *> (qAttest.attested);
     cout << "Quoted PCR: " << qInfo->pcrSelect[0].ToString() << endl;
     cout << "PCR-value digest: " << qInfo->pcrDigest << endl;
 
-    // We can use the TSS.C++ library to verify the quote. First read the public key.
-    // Nomrmally the verifier will have other ways of determinig the veractity
-    // of the public key
     ReadPublicResponse pubKey = tpm.ReadPublic(signingKey);
     bool sigOk = pubKey.outPublic.ValidateQuote(pcrVals, Nonce, quote);
 
@@ -224,28 +241,97 @@ void AttestationForIot()
     }
 
     //
-    // Activate the restricted key
+    // Create a user signing-only key in the storage hierarchy. 
     //
 
-    // TODO
+    TPMT_PUBLIC templ(TPM_ALG_ID::SHA1,
+        TPMA_OBJECT::sign |           // Key attributes
+        TPMA_OBJECT::fixedParent |
+        TPMA_OBJECT::fixedTPM |
+        TPMA_OBJECT::sensitiveDataOrigin |
+        TPMA_OBJECT::userWithAuth,
+        NullVec,                      // No policy
+        TPMS_RSA_PARMS(
+            TPMT_SYM_DEF_OBJECT(TPM_ALG_ID::_NULL, 0, TPM_ALG_ID::_NULL),
+            TPMS_SCHEME_RSASSA(TPM_ALG_ID::SHA1), 2048, 65537),
+        TPM2B_PUBLIC_KEY_RSA(NullVec));
 
     //
-    // Create a user key
+    // Include the same PCR selection as above
     //
 
-    // TODO
+    CreateResponse newSigningKey = tpm.Create(
+        primaryKey,
+        TPMS_SENSITIVE_CREATE(NullVec, NullVec),
+        templ,
+        NullVec,
+        pcrsToQuote);
 
     //
-    // Either activate or attest to the user key
+    // Load the new key
     //
 
-    // TODO
+    TPM_HANDLE keyToCertify = tpm.Load(
+        primaryKey,
+        newSigningKey.outPrivate,
+        newSigningKey.outPublic);
 
     //
-    // Sign some data with the user key
+    // Certify the creation of the user key using the AIK
     //
+
+    CertifyCreationResponse createQuote = tpm.CertifyCreation(
+        signingKey,
+        keyToCertify,
+        Nonce,
+        newSigningKey.creationHash,
+        TPMS_NULL_SIG_SCHEME(),
+        newSigningKey.creationTicket);
+
+    //
+    // Simulate checking the key creation quote signature at the server
+    //
+
+    sigOk = pubKey.outPublic.ValidateCertifyCreation(
+        Nonce,
+        newSigningKey.creationHash,
+        createQuote);
+    if (sigOk) {
+        cout << "Key creation certification validated" << endl;
+    }
+
+    //
+    // Sign a message with the user key
+    //
+
+    ByteVec messageHash = TPMT_HA::FromHashOfString(
+        TPM_ALG_ID::SHA1, "some message or telemetry data").digest;
+    auto signature = tpm.Sign(
+        keyToCertify,
+        messageHash,
+        TPMS_NULL_SIG_SCHEME(),
+        TPMT_TK_HASHCHECK::NullTicket());
+
+    cout << "Signature with imported key: " << signature.ToString(false) << endl;
+
+    //
+    // Simulate checking the message signature at the server
+    //
+
+    ReadPublicResponse userPublic = tpm.ReadPublic(keyToCertify);
+    sigOk = userPublic.outPublic.ValidateSignature(
+        messageHash, *signature.signature);
+    if (sigOk) {
+        cout << "Message signature validated" << endl;
+    }
     
-    // TODO
+    //
+    // Dump handles we're done with
+    //
+
+    tpm.FlushContext(keyToCertify);
+    tpm.FlushContext(primaryKey);
+    tpm.FlushContext(signingKey);
 }
 
 //
