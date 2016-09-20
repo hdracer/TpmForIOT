@@ -8,6 +8,8 @@ Written in C++, TpmForIoT compiles and runs on both Linux and Windows. Although 
 - Distribution of a per-device secret (for example, a cloud API key)
 - Creation of a non-exportable general purpose assymetric key usable for message signing (or any PKI scenario).
 
+TpmForIoT uses the [TSS.CPP library from Microsoft Research](https://github.com/Microsoft/TSS.MSR/tree/master/TSS.CPP). On Linux, the [Intel TPM2.0-TSS resource manager](https://github.com/01org/TPM2.0-TSS/tree/master/resourcemgr) is assumed to be running (as root; using default ports) and the host TPM hierarchy auth values are all assumed to be "1234". 
+
 Please see below for sample output from the command-line program. 
 
 ```
