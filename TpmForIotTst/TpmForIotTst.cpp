@@ -206,9 +206,9 @@ ActivationData ServerGetActivation(
     // For an example of pulling EK manufacturer certificates from the 
     // internet, see:
     // https://github.com/01org/tpm2.0-tools/blob/master/src/tpm2_getmanufec.cpp
+    //
 
-    // TODO
-    cout << "Server: EK public is trusted: " << clientEkPub.Serialize(SerializationType::Text) << endl;
+    cout << "Server: assume Endorsement Key is trusted: " << clientEkPub.GetName() << endl;
 
     //
     // Create a random secret and encrypt it back to the client. If the client
@@ -223,7 +223,8 @@ ActivationData ServerGetActivation(
     //
 
     ByteVec secret = CryptoServices::GetRand(16);
-    cout << "Server: Secret is " << secret << endl;
+    cout << "Server: secret is: " << secret << endl;
+    cout << "Server: creating activation challenge for this key: " << nameOfKeyToActivate << endl;
     return clientEkPub.CreateActivation(
         secret,
         TPM_ALG_ID::SHA1,
@@ -244,18 +245,16 @@ void ServerRegisterKey(
     // Linux, this procedure requires whitelisting.
     //
 
-    // TODO
     TPMS_ATTEST qAttest = clientPcrQuote.quoted;
     TPMS_QUOTE_INFO *qInfo = dynamic_cast<TPMS_QUOTE_INFO *> (qAttest.attested);
-    cout << "Server: quoted PCR is trusted: " << qInfo->pcrSelect[0].ToString() << endl;
+    cout << "Server: assume quoted PCR is correct: " << qInfo->pcrDigest << endl;
 
     //
     // Confirm that the client restricted public is the same key that the 
     // server activated in the previous call
     //
 
-    // TODO
-    cout << "Server: restricted key is trusted: " << clientRestrictedPub.Serialize(SerializationType::Text) << endl;
+    cout << "Server: assume restricted key matches previous activation: " << clientRestrictedPub.GetName() << endl;
 
     //
     // Check the PCR quote signature
@@ -266,6 +265,10 @@ void ServerRegisterKey(
     if (sigOk) {
         cout << "Server: PCR quote is valid" << endl;
     }
+    else {
+        cout << "Server: PCR quote is invalid" << endl;
+        exit(1);
+    }
 
     //
     // For the new child key, hash the creation data
@@ -275,16 +278,16 @@ void ServerRegisterKey(
         TPM_ALG_ID::SHA1, clientKeyCreation.ToBuf()).digest;
 
     //
-    // Check the parent key identity
-    //
-
-    // TODO
-
-    //
     // Check the PCR binding
     //
 
-    // TODO
+    if (clientKeyCreation.pcrDigest == qInfo->pcrDigest) {
+        cout << "Server: PCR digest for new key is correct" << endl;
+    }
+    else {
+        cout << "Server: PCR digest for new key is incorrect" << endl;
+        exit(1);
+    }
 
     // 
     // Check the key quote signature
@@ -294,8 +297,15 @@ void ServerRegisterKey(
         serverSecret,
         creationHash,
         clientKeyQuote);
+
+    TPMS_ATTEST cAttest = clientKeyQuote.certifyInfo;
+    TPMS_CREATION_INFO *cInfo = dynamic_cast<TPMS_CREATION_INFO *> (cAttest.attested);
     if (sigOk) {
-        cout << "Server: key quote is valid" << endl;
+        cout << "Server: quote is valid for this key: " << cInfo->objectName << endl;
+    }
+    else {
+        cout << "Server: key creation certification/quote is invalid" << endl;
+        exit(1);
     }
 }
 
@@ -309,8 +319,7 @@ void ServerReceiveMessage(
     // previous server call
     //
 
-    // TODO
-    cout << "Server: client signing key is trusted " << clientSigningPub.Serialize(SerializationType::Text) << endl;
+    cout << "Server: assume previous registration of this key: " << clientSigningPub.GetName() << endl;
 
     //
     // Hash the message
@@ -328,10 +337,14 @@ void ServerReceiveMessage(
     if (sigOk) {
         cout << "Server: message received and verified" << endl;
     }
+    else {
+        cout << "Server: message signature verification failed" << endl;
+        exit(1);
+    }
 
     //
-    // Process the message, as appropriate, based on whether the signature
-    // is valid and from a trusted device
+    // Process the message, as appropriate for the host app, based on whether 
+    // the signature is valid and from a trusted device
     //
 
     // TODO
@@ -380,6 +393,7 @@ void AttestationForIot()
     // Read out the manufacturer Endorsement Key (EK)
     //
 
+    cout << "Client: open a handle to the TPM Endorsement Key (EK)..." << endl;
     TPM_HANDLE ekHandle = MakeEndorsementKey(tpm);
     auto ekPubX = tpm.ReadPublic(ekHandle);
     TPMT_PUBLIC& ekPub = ekPubX.outPublic;
@@ -388,10 +402,13 @@ void AttestationForIot()
     // Create a restricted key in the storage hierarchy
     //
 
+    cout << "Client: open a handle to the TPM Storage Root Key (SRK)..." << endl;
     TPM_HANDLE primaryKey = MakeStoragePrimary(tpm);
+    cout << "Client: create a restricted key: ";
     TPM_HANDLE restrictedKey = MakeChildSigningKey(tpm, primaryKey, true);
     auto restrictedPubX = tpm.ReadPublic(restrictedKey);
     TPMT_PUBLIC& restrictedPub = restrictedPubX.outPublic;
+    cout << restrictedPub.GetName() << endl;
 
     //
     // Request activation to prove linkage between restricted key and EK 
@@ -410,7 +427,7 @@ void AttestationForIot()
         ekHandle, 
         encryptedSecret.CredentialBlob, 
         encryptedSecret.Secret);
-    cout << "Client: decrypted secret is " << decryptedSecret << endl;
+    cout << "Client: decrypted secret: " << decryptedSecret << endl;
 
     //
     // Optionally, save the AIK, since it can be reused across reboots
@@ -452,6 +469,7 @@ void AttestationForIot()
     // Include the same PCR selection as above
     //
 
+    cout << "Client: create a general purpose signing key on the TPM..." << endl;
     CreateResponse newSigningKey = tpm.Create(
         primaryKey,
         TPMS_SENSITIVE_CREATE(NullVec, NullVec),
@@ -507,7 +525,7 @@ void AttestationForIot()
         TPMS_NULL_SIG_SCHEME(),
         TPMT_TK_HASHCHECK::NullTicket());
 
-    cout << "Client: message signature: " << signature.ToString(false) << endl;
+    cout << "Client: message hash: " << messageHash << endl;
 
     //
     // Send the signed message to the server
