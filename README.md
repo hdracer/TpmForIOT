@@ -1,7 +1,14 @@
 # TpmForIoT
 This project uses the TPM (Trusted Platform Module) for strong IoT (Internet of Things) device identity, firmware anti-tampering, and secure messaging. 
 
-Written in C++, TpmForIoT compiles and runs on both Linux and Windows. Please see below for sample output from the command-line program. Although the demonstration is single-threaded, it is structured to show how an IoT device can interact with a trusted server. The device-to-server interaction is a cryptographic challenge-response protocol that accomplishes several useful things: device identity based on a manufacturer whitelist, firmware thumbprinting, distribution of a per-device secret (for example, a cloud API key), and creation of a non-exportable general purpose assymetric key usable for message signing (or any PKI-based application).
+Written in C++, TpmForIoT compiles and runs on both Linux and Windows. Although the demonstration currently is single-threaded, it is structured to show how an IoT device can interact with a trusted server. The device-to-server interaction is a cryptographic challenge-response protocol that accomplishes several useful things: 
+
+- Device identity based on manufacturer Endorsement Key whitelist (or based on certificate trust)
+- Firmware thumbprinting
+- Distribution of a per-device secret (for example, a cloud API key)
+- Creation of a non-exportable general purpose assymetric key usable for message signing (or any PKI scenario).
+
+Please see below for sample output from the command-line program. 
 
 ```
 >TpmForIotTst.exe
