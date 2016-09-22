@@ -2,6 +2,8 @@
 
 using namespace TpmCpp;
 
+#define TPM_FOR_IOT_HASH_ALG TPM_ALG_ID::SHA1
+
 //
 // Non-WIN32 initialization for TSS.CPP.
 //
@@ -13,7 +15,7 @@ extern void DllInit();
 TPM_HANDLE MakeEndorsementKey(_TPMCPP Tpm2 &tpm)
 {
     vector<BYTE> NullVec;
-    TPMT_PUBLIC storagePrimaryTemplate(TPM_ALG_ID::SHA1,
+    TPMT_PUBLIC storagePrimaryTemplate(TPM_FOR_IOT_HASH_ALG,
         TPMA_OBJECT::decrypt | TPMA_OBJECT::restricted |
         TPMA_OBJECT::fixedParent | TPMA_OBJECT::fixedTPM |
         TPMA_OBJECT::sensitiveDataOrigin | TPMA_OBJECT::userWithAuth,
@@ -42,7 +44,7 @@ TPM_HANDLE MakeStoragePrimary(_TPMCPP Tpm2 &tpm)
 {
     vector<BYTE> NullVec;
     TPMT_PUBLIC storagePrimaryTemplate(
-        TPM_ALG_ID::SHA1,
+        TPM_FOR_IOT_HASH_ALG,
         TPMA_OBJECT::decrypt | TPMA_OBJECT::restricted |
         TPMA_OBJECT::fixedParent | TPMA_OBJECT::fixedTPM |
         TPMA_OBJECT::sensitiveDataOrigin | TPMA_OBJECT::userWithAuth,
@@ -79,14 +81,14 @@ TPM_HANDLE MakeChildSigningKey(
     }
 
     TPMT_PUBLIC templ(
-        TPM_ALG_ID::SHA1,
+        TPM_FOR_IOT_HASH_ALG,
         TPMA_OBJECT::sign | TPMA_OBJECT::fixedParent |
         TPMA_OBJECT::fixedTPM | TPMA_OBJECT::sensitiveDataOrigin |
         TPMA_OBJECT::userWithAuth | restrictedAttribute,
         NullVec,  // No policy
         TPMS_RSA_PARMS(
             TPMT_SYM_DEF_OBJECT(TPM_ALG_ID::_NULL, 0, TPM_ALG_ID::_NULL),
-            TPMS_SCHEME_RSASSA(TPM_ALG_ID::SHA1), 2048, 65537), // PKCS1.5
+            TPMS_SCHEME_RSASSA(TPM_FOR_IOT_HASH_ALG), 2048, 65537), // PKCS1.5
         TPM2B_PUBLIC_KEY_RSA(NullVec));
 
     CreateResponse newSigningKey = tpm.Create(
@@ -179,6 +181,72 @@ void SetPlatformAuthenticationValues(_TPMCPP Tpm2 &tpm)
 #endif
 }
 
+void ShowTpmCapabilities(_TPMCPP Tpm2 &tpm)
+{
+    UINT32 startVal = 0;
+ 
+    //
+    // Manufacturer information
+    //
+
+    do {
+        GetCapabilityResponse caps = tpm.GetCapability(TPM_CAP::TPM_PROPERTIES, startVal, 8);
+        TPML_TAGGED_TPM_PROPERTY *props = dynamic_cast<TPML_TAGGED_TPM_PROPERTY *> (caps.capabilityData);
+
+        // Print name and value
+        for (auto p = props->tpmProperty.begin(); p != props->tpmProperty.end(); p++) {
+            CHAR *pCharValue = (CHAR *)&p->value;
+            cout << Tpm2::GetEnumString(p->property) << ": ";
+            switch (p->property)
+            {
+            case TPM_PT::FAMILY_INDICATOR:
+            case TPM_PT::MANUFACTURER:
+            case TPM_PT::VENDOR_STRING_1:
+            case TPM_PT::VENDOR_STRING_2:
+            case TPM_PT::VENDOR_STRING_3:
+            case TPM_PT::VENDOR_STRING_4:
+                cout << pCharValue[3] << pCharValue[2] << pCharValue[1] << pCharValue[0];
+                break;
+            default:
+                cout << p->value;
+                break;
+            }
+            cout << endl;
+        }
+
+        if (!caps.moreData) {
+            break;
+        }
+
+        startVal = ((UINT32)props->tpmProperty[props->tpmProperty.size() - 1].property) + 1;
+    } while (true);
+    cout << endl;
+
+    //
+    // Cryptographic capabilities
+    //
+
+    cout << "Algorithms:" << endl;
+    startVal = 0;
+    do {
+        GetCapabilityResponse caps = tpm.GetCapability(TPM_CAP::ALGS, startVal, 8);
+        TPML_ALG_PROPERTY *props = dynamic_cast<TPML_ALG_PROPERTY *> (caps.capabilityData);
+
+        // Print alg name and properties
+        for (auto p = props->algProperties.begin(); p != props->algProperties.end(); p++) {
+            cout << setw(16) << Tpm2::GetEnumString(p->alg) <<
+                ": " << Tpm2::GetEnumString(p->algProperties) << endl;
+        }
+
+        if (!caps.moreData) {
+            break;
+        }
+
+        startVal = ((UINT32)props->algProperties[props->algProperties.size() - 1].alg) + 1;
+    } while (true);
+    cout << endl;
+}
+
 //
 // Simulated server call that returns a Nonce
 //
@@ -227,7 +295,7 @@ ActivationData ServerGetActivation(
     cout << "Server: creating activation challenge for this key: " << nameOfKeyToActivate << endl;
     return clientEkPub.CreateActivation(
         secret,
-        TPM_ALG_ID::SHA1,
+        TPM_FOR_IOT_HASH_ALG,
         nameOfKeyToActivate);
 }
 
@@ -275,7 +343,7 @@ void ServerRegisterKey(
     //
 
     ByteVec creationHash = TPMT_HA::FromHashOfData(
-        TPM_ALG_ID::SHA1, clientKeyCreation.ToBuf()).digest;
+        TPM_FOR_IOT_HASH_ALG, clientKeyCreation.ToBuf()).digest;
 
     //
     // Check the PCR binding
@@ -326,7 +394,7 @@ void ServerReceiveMessage(
     //
 
     ByteVec messageHash = TPMT_HA::FromHashOfString(
-        TPM_ALG_ID::SHA1, clientMessage).digest;
+        TPM_FOR_IOT_HASH_ALG, clientMessage).digest;
 
     //
     // Check the signature
@@ -390,6 +458,12 @@ void AttestationForIot()
     SetPlatformAuthenticationValues(tpm);
 
     //
+    // List certain TPM capabilities for lab testing
+    //
+
+    ShowTpmCapabilities(tpm);
+
+    //
     // Read out the manufacturer Endorsement Key (EK)
     //
 
@@ -439,7 +513,7 @@ void AttestationForIot()
     // Read PCR data
     //
 
-    auto pcrsToQuote = TPMS_PCR_SELECTION::GetSelectionArray(TPM_ALG_ID::SHA1, 7);
+    auto pcrsToQuote = TPMS_PCR_SELECTION::GetSelectionArray(TPM_FOR_IOT_HASH_ALG, 7);
     PCR_ReadResponse pcrVals = tpm.PCR_Read(pcrsToQuote);
 
     //
@@ -453,7 +527,7 @@ void AttestationForIot()
     // Create a user signing-only key in the storage hierarchy. 
     //
 
-    TPMT_PUBLIC templ(TPM_ALG_ID::SHA1,
+    TPMT_PUBLIC templ(TPM_FOR_IOT_HASH_ALG,
         TPMA_OBJECT::sign |           // Key attributes
         TPMA_OBJECT::fixedParent |
         TPMA_OBJECT::fixedTPM |
@@ -462,7 +536,7 @@ void AttestationForIot()
         NullVec,                      // No policy
         TPMS_RSA_PARMS(
             TPMT_SYM_DEF_OBJECT(TPM_ALG_ID::_NULL, 0, TPM_ALG_ID::_NULL),
-            TPMS_SCHEME_RSASSA(TPM_ALG_ID::SHA1), 2048, 65537),
+            TPMS_SCHEME_RSASSA(TPM_FOR_IOT_HASH_ALG), 2048, 65537),
         TPM2B_PUBLIC_KEY_RSA(NullVec));
 
     //
@@ -518,7 +592,7 @@ void AttestationForIot()
 
     std::string clientMessage("some message or telemetry data");
     ByteVec messageHash = TPMT_HA::FromHashOfString(
-        TPM_ALG_ID::SHA1, clientMessage).digest;
+        TPM_FOR_IOT_HASH_ALG, clientMessage).digest;
     auto signature = tpm.Sign(
         keyToCertify,
         messageHash,
