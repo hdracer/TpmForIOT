@@ -187,6 +187,7 @@ void ShowTpmCapabilities(_TPMCPP Tpm2 &tpm)
  
     //
     // Manufacturer information
+    // See also https://github.com/ms-iot/security/blob/master/Urchin/T2T/T2T.cpp
     //
 
     do {
@@ -195,7 +196,7 @@ void ShowTpmCapabilities(_TPMCPP Tpm2 &tpm)
 
         // Print name and value
         for (auto p = props->tpmProperty.begin(); p != props->tpmProperty.end(); p++) {
-            CHAR *pCharValue = (CHAR *)&p->value;
+            char *pCharValue = (char *)&p->value;
             cout << Tpm2::GetEnumString(p->property) << ": ";
             switch (p->property)
             {
