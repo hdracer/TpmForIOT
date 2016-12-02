@@ -1,5 +1,7 @@
 #include "stdafx.h"
 
+#include "TpmForIotPolicy.h"
+
 using namespace TpmCpp;
 
 #define TPM_FOR_IOT_HASH_ALG TPM_ALG_ID::SHA1
@@ -8,72 +10,6 @@ using namespace TpmCpp;
 // Non-WIN32 initialization for TSS.CPP.
 //
 extern void DllInit();
-
-void PolicyAuthorizeSample(_TPMCPP Tpm2 &tpm)
-{
-    ByteVec NullVec(0);
-
-    cout << "PolicyAuthorize" << endl;
-
-    // This sample illustrates how TSS.C++ supports PolicyAuthorize.
-    // PolicyAuthorize lets a key holder tranform a policyHash into a new
-    // policyHash derived from a public key if the corresponding private key
-    // holder authorizes the pre-policy-hash with a signature.
-
-    // Make a software signing key
-    TPMT_PUBLIC templ(TPM_FOR_IOT_HASH_ALG,
-        TPMA_OBJECT::sign | TPMA_OBJECT::userWithAuth,
-        NullVec,
-        TPMS_RSA_PARMS(
-            TPMT_SYM_DEF_OBJECT::NullObject(),
-            TPMS_SCHEME_RSASSA(TPM_ALG_ID::SHA1), 1024, 65537),
-        TPM2B_PUBLIC_KEY_RSA(NullVec));
-    TSS_KEY swKey;
-    swKey.publicPart = templ;
-    swKey.CreateKey();
-
-    // We will authorize the change from the policyDigest given by PolicyLocality(1)
-    // to a value derived from the authorizing key above.
-
-    // First get the policyHash we want to authorize
-    PolicyLocality l(TPMA_LOCALITY::LOC_ONE);
-    PolicyTree t1(l);
-    auto preDigest = t1.GetPolicyDigest(TPM_ALG_ID::SHA1);
-
-    // Next sign the policyHash as defined in the spec
-    auto aHash = TPMT_HA::FromHashOfData(TPM_ALG_ID::SHA1,
-        Helpers::Concatenate(preDigest.digest, NullVec));
-
-    SignResponse signature = swKey.Sign(aHash.digest, TPMS_NULL_SIG_SCHEME());
-
-    // Now make the second policy that contains the PolicyLocality AND the PolicyAuthorize
-    PolicyTree p2(PolicyAuthorize(preDigest.digest, NullVec, swKey.publicPart, *signature.signature), l);
-
-    AUTH_SESSION s = tpm.StartAuthSession(TPM_SE::POLICY, TPM_ALG_ID::SHA1);
-    p2.Execute(tpm, s);
-
-    auto policyDigest = tpm.PolicyGetDigest(s);
-
-    // Is it what we expect? This is the PolicyUpdate function from the spec.
-    /*
-    OutByteBuf b;
-    b << ToIntegral(TPM_CC::PolicyAuthorize) << swKey.publicPart.GetName();
-    TPMT_HA expectedPolicyDigest(TPM_ALG_ID::SHA1);
-    expectedPolicyDigest.Extend(b.GetBuf());
-    expectedPolicyDigest.Extend(NullVec);
-
-    if (expectedPolicyDigest.digest != policyDigest) {
-        throw runtime_error("Incorrect policyHash");
-    }
-    */
-    cout << "PolicyAuthorize digest is correct" << endl;
-
-    // We could now use the policy session, but for the sample we will just clean up.
-    tpm.FlushContext(s);
-
-    return;
-}
-
 
 //
 // Open the Endorsement Key
@@ -314,6 +250,43 @@ void ShowTpmCapabilities(_TPMCPP Tpm2 &tpm)
     cout << endl;
 }
 
+TSS_KEY* g_pAuthorityKey;
+
+void ServerStart()
+{
+    ByteVec NullVec(0);
+
+    TPMT_PUBLIC authorityTempl = TPMT_PUBLIC(TPM_FOR_IOT_HASH_ALG,
+        TPMA_OBJECT::sign | TPMA_OBJECT::userWithAuth,
+        NullVec,
+        TPMS_RSA_PARMS(
+            TPMT_SYM_DEF_OBJECT::NullObject(),
+            TPMS_SCHEME_RSASSA(TPM_FOR_IOT_HASH_ALG), 2048, 65537),
+        TPM2B_PUBLIC_KEY_RSA(NullVec));
+    
+    g_pAuthorityKey = new TSS_KEY();
+
+    g_pAuthorityKey->publicPart = authorityTempl;
+    g_pAuthorityKey->CreateKey();
+}
+
+void ServerStop()
+{
+    delete g_pAuthorityKey;
+}
+
+bool ServerGetAuthorityPublicKey(TPMT_PUBLIC& authorityPubKey)
+{
+    if (NULL == g_pAuthorityKey)
+    {
+        return false;
+    }
+
+    authorityPubKey = g_pAuthorityKey->publicPart;
+
+    return true;
+}
+
 //
 // Simulated server call that returns a Nonce
 //
@@ -442,6 +415,46 @@ void ServerRegisterKey(
         cout << "Server: key creation certification/quote is invalid" << endl;
         exit(1);
     }
+}
+
+PolicyTree ServerIssueLicense(
+    ByteVec &serverSecret,
+    TPMT_PUBLIC &clientRestrictedPub,
+    PCR_ReadResponse &clientPcrVals,
+    QuoteResponse &clientPcrQuote)
+{
+    //
+    // Confirm that the provided PCR hash is as expected for this particular 
+    // client device. On Windows, an attested boot log can be used instead. On 
+    // Linux, this procedure requires whitelisting.
+    //
+
+    TPMS_ATTEST qAttest = clientPcrQuote.quoted;
+    TPMS_QUOTE_INFO *qInfo = dynamic_cast<TPMS_QUOTE_INFO *> (qAttest.attested);
+    cout << "Server: assume quoted PCR is correct: " << qInfo->pcrDigest << endl;
+
+    //
+    // Confirm that the client restricted public is the same key that the 
+    // server activated in the previous call
+    //
+
+    cout << "Server: assume restricted key matches previous activation: " << clientRestrictedPub.GetName() << endl;
+
+    //
+    // Check the PCR quote signature
+    //
+
+    bool sigOk = clientRestrictedPub.ValidateQuote(
+        clientPcrVals, serverSecret, clientPcrQuote);
+    if (sigOk) {
+        cout << "Server: PCR quote is valid" << endl;
+    }
+    else {
+        cout << "Server: PCR quote is invalid" << endl;
+        exit(1);
+    }
+
+    return GeneratePolicy(*g_pAuthorityKey, clientPcrVals.pcrValues, qInfo->pcrSelect);
 }
 
 void ServerReceiveMessage(
@@ -681,6 +694,8 @@ void AttestationForIot()
     TPMT_PUBLIC& restrictedPub = restrictedPubX.outPublic;
     cout << restrictedPub.GetName() << endl;
 
+    ServerStart();
+
     //
     // Request activation to prove linkage between restricted key and EK 
     //
@@ -720,10 +735,6 @@ void AttestationForIot()
     QuoteResponse quote = tpm.Quote(
         restrictedKey, decryptedSecret, TPMS_NULL_SIG_SCHEME(), pcrsToQuote);
     
-    PolicyAuthorizeSample(tpm);
-
-    cout << "Starting Auth Session... ";
-
     /*
     cout << "Loading Server Certificate... ";
     PCCERT_CONTEXT pAuthorityCert = LoadServerCertificate();
@@ -732,8 +743,9 @@ void AttestationForIot()
     TPMT_PUBLIC authorityPubKey = ConvertCertificateToTPMTPub(pAuthorityCert);
     */
 
+
+    /*
     TPMT_PUBLIC authorityTempl = TPMT_PUBLIC(TPM_FOR_IOT_HASH_ALG,
-                                             //TPMA_OBJECT::decrypt | TPMA_OBJECT::sign | TPMA_OBJECT::userWithAuth,
                                              TPMA_OBJECT::sign | TPMA_OBJECT::userWithAuth,
                                              NullVec,
                                              TPMS_RSA_PARMS(
@@ -743,43 +755,26 @@ void AttestationForIot()
     TSS_KEY authorityKey;
     authorityKey.publicPart = authorityTempl;
     authorityKey.CreateKey();
+    */
 
+    TPMT_PUBLIC authorityPubKey;
 
-    cout << "Beginning policy tree... ";
-    //PolicyLocality l(TPMA_LOCALITY::LOC_ONE);
-    PolicyCommandCode l(TPM_CC::Sign);
-    PolicyTree p(l);
-    auto preDigest = p.GetPolicyDigest(TPM_FOR_IOT_HASH_ALG);
+    if (!ServerGetAuthorityPublicKey(authorityPubKey))
+    {
+        cout << "Getting Authority Pub Key failed" << endl;
+    }
 
-    cout << "Intermediate Policy digest " << preDigest.digest << endl;
+    ByteVec policyAuthDigest = GeneratePolicyAuthorizeDigest(authorityPubKey);
 
-    auto aHash = TPMT_HA::FromHashOfData(TPM_FOR_IOT_HASH_ALG, Helpers::Concatenate(preDigest.digest, NullVec));
+    cout << "Starting Auth Session... ";
 
-    SignResponse signature = authorityKey.Sign(aHash.digest, TPMS_NULL_SIG_SCHEME());
+    AUTH_SESSION s = tpm.StartAuthSession(TPM_SE::POLICY, TPM_FOR_IOT_HASH_ALG);
 
-    PolicyTree p2(PolicyAuthorize(preDigest.digest, NullVec, authorityKey.publicPart, *signature.signature), l);
+    cout << "executing policy tree ... ";
 
-    auto policyDigest = p2.GetPolicyDigest(TPM_FOR_IOT_HASH_ALG);
-
-    cout << "Policy digest " << policyDigest.digest << endl;
-
-    cout << "Executing policy tree... ";
-    AUTH_SESSION s = tpm.StartAuthSession(TPM_SE::TRIAL, TPM_FOR_IOT_HASH_ALG);
-
-    p2.Execute(tpm, s);
+    p.Execute(tpm, s);
 
     cout << "done." << endl;
-
-    cout << "Policy digest from Trial Session " << tpm.PolicyGetDigest(s) << endl;
-
-    tpm.FlushContext(s);
-
-    cout << "Constructing a policy tree out of apriori unknown information." << endl;
-    
-    PolicyTree p3(PolicyAuthorize(ByteVec(20,0), NullVec, authorityKey.publicPart, TPMT_SIGNATURE()), l);
-    
-    cout << "Policy Digest " << p3.GetPolicyDigest(TPM_FOR_IOT_HASH_ALG).digest << endl;
-
 
     //
     // Create a user signing-only key in the storage hierarchy. 
@@ -791,7 +786,7 @@ void AttestationForIot()
         TPMA_OBJECT::fixedTPM |
         TPMA_OBJECT::sensitiveDataOrigin |
         TPMA_OBJECT::adminWithPolicy,
-        policyDigest.digest,
+        policyAuthDigest,
         TPMS_RSA_PARMS(
             TPMT_SYM_DEF_OBJECT::NullObject(),
             TPMS_SCHEME_RSASSA(TPM_FOR_IOT_HASH_ALG), 2048, 65537),
@@ -849,16 +844,22 @@ void AttestationForIot()
         newSigningKey.creationData,
         createQuote);
 
+    PolicyTree p = ServerIssueLicense(
+        decryptedSecret,
+        restrictedPub,
+        pcrVals,
+        quote);
+
     //
     // Sign a message with the user key
     //
 
-    //AUTH_SESSION s = tpm.StartAuthSession(TPM_SE::POLICY, TPM_ALG_ID::SHA1);
-
     cout << "Executing policy tree... ";
+    //AUTH_SESSION s = tpm.StartAuthSession(TPM_SE::POLICY, TPM_FOR_IOT_HASH_ALG);
+
     s = tpm.StartAuthSession(TPM_SE::POLICY, TPM_FOR_IOT_HASH_ALG);
 
-    p2.Execute(tpm, s);
+    p.Execute(tpm, s);
 
     cout << "done." << endl;
 
@@ -901,6 +902,8 @@ void AttestationForIot()
     tpm.FlushContext(keyToCertify);
     tpm.FlushContext(primaryKey);
     tpm.FlushContext(restrictedKey);
+
+    ServerStop();
 }
 
 //

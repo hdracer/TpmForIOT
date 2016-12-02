@@ -1,0 +1,55 @@
+﻿  IotPolicyKeys.cpp
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\helpers.h(63): warning C4267: 'return': conversion from 'size_t' to 'int', possible loss of data
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\helpers.h(122): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(522): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::TpmTypeId' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(524): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::TPM_CAP' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(533): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::NameUnionTagValues' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(695): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::TPM_ALG_ID' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(716): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::TPM_ECC_CURVE' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(734): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::SHA1' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(752): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::SHA256' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(770): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::SHA384' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(788): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::SHA512' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(806): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::SM3_256' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(826): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::ImplementationConstants' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(836): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::Logic' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(862): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::TPM_SPEC' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(872): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::TPM_GENERATED' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(1082): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::TPM_CC' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(1562): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::TPM_RC' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(1596): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::TPM_CLOCK_ADJUST' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(1650): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::TPM_EO' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(1726): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::TPM_ST' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(1742): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::TPM_SU' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(1755): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::TPM_SE' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(1803): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::TPM_CAP' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(2123): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::TPM_PT' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(2209): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::TPM_PT_PCR' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(2279): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::TPM_PS' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(2324): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::TPM_HT' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(2402): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::TPM_RH' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(2432): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::TPM_NT' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(2618): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::Implementation' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(2710): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::TPM_HC' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(2751): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::TPMA_ALGORITHM' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(2817): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::TPMA_OBJECT' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(2871): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::TPMA_SESSION' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(2892): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::TPMA_LOCALITY' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(2929): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::TPMA_PERMANENT' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(2969): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::TPMA_STARTUP_CLEAR' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(2991): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::TPMA_MEMORY' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(3061): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::TPMA_CC' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(3112): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::TPM_NV_INDEX' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(3261): warning C4091: '__declspec(dllimport)': ignored on left of 'TpmCpp::TPMA_NV' when no variable is declared
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\tpmtypes.h(3438): warning C4251: 'TpmCpp::TPMT_HA::digest': class 'std::vector<BYTE,std::allocator<_Ty>>' needs to have dll-interface to be used by clients of class 'TpmCpp::TPMT_HA'
+          with
+          [
+              _Ty=BYTE
+          ]
+  c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\fdefs.h(55): note: see declaration of 'std::vector<BYTE,std::allocator<_Ty>>'
+          with
+          [
+              _Ty=BYTE
+          ]
+c:\users\shumow\documents\github\tpmforiot\tss.msr.cpp\src\extensions\tpms_pcr_selection.h(75): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
+  IotPolicyKeys.vcxproj -> C:\Users\shumow\Documents\GitHub\TpmForIOT\x64\Debug\IotPolicyKeys.lib
