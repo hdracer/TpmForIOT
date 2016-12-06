@@ -343,19 +343,9 @@ void ServerRegisterKey(
     ByteVec &serverSecret, 
     TPMT_PUBLIC &clientRestrictedPub,
     PCR_ReadResponse &clientPcrVals,
-    QuoteResponse &clientPcrQuote, 
     TPMS_CREATION_DATA &clientKeyCreation,
     CertifyCreationResponse &clientKeyQuote)
 {
-    //
-    // Confirm that the provided PCR hash is as expected for this particular 
-    // client device. On Windows, an attested boot log can be used instead. On 
-    // Linux, this procedure requires whitelisting.
-    //
-
-    TPMS_ATTEST qAttest = clientPcrQuote.quoted;
-    TPMS_QUOTE_INFO *qInfo = dynamic_cast<TPMS_QUOTE_INFO *> (qAttest.attested);
-    cout << "Server: assume quoted PCR is correct: " << qInfo->pcrDigest << endl;
 
     //
     // Confirm that the client restricted public is the same key that the 
@@ -364,19 +354,13 @@ void ServerRegisterKey(
 
     cout << "Server: assume restricted key matches previous activation: " << clientRestrictedPub.GetName() << endl;
 
-    //
-    // Check the PCR quote signature
-    //
-
-    bool sigOk = clientRestrictedPub.ValidateQuote(
-        clientPcrVals, serverSecret, clientPcrQuote);
-    if (sigOk) {
-        cout << "Server: PCR quote is valid" << endl;
-    }
-    else {
-        cout << "Server: PCR quote is invalid" << endl;
+    if (clientPcrVals.pcrSelectionOut != clientKeyCreation.pcrSelect)
+    {
+        cout << "Server: PCR Selection did not match." << endl;
         exit(1);
     }
+
+
 
     //
     // For the new child key, hash the creation data
@@ -385,26 +369,13 @@ void ServerRegisterKey(
     ByteVec creationHash = TPMT_HA::FromHashOfData(
         TPM_FOR_IOT_HASH_ALG, clientKeyCreation.ToBuf()).digest;
 
-    //
-    // Check the PCR binding
-    //
-
-    if (clientKeyCreation.pcrDigest == qInfo->pcrDigest) {
-        cout << "Server: PCR digest for new key is correct" << endl;
-    }
-    else {
-        cout << "Server: PCR digest for new key is incorrect" << endl;
-        exit(1);
-    }
-
     // 
     // Check the key quote signature
     //
 
-    sigOk = clientRestrictedPub.ValidateCertifyCreation(
-        serverSecret,
-        creationHash,
-        clientKeyQuote);
+    bool sigOk = clientRestrictedPub.ValidateCertifyCreation(serverSecret,
+                                                             creationHash,
+                                                             clientKeyQuote);
 
     TPMS_ATTEST cAttest = clientKeyQuote.certifyInfo;
     TPMS_CREATION_INFO *cInfo = dynamic_cast<TPMS_CREATION_INFO *> (cAttest.attested);
@@ -415,6 +386,9 @@ void ServerRegisterKey(
         cout << "Server: key creation certification/quote is invalid" << endl;
         exit(1);
     }
+
+
+
 }
 
 PolicyTree ServerIssueLicense(
@@ -725,15 +699,16 @@ void AttestationForIot()
     // Read PCR data
     //
 
-    auto pcrsToQuote = TPMS_PCR_SELECTION::GetSelectionArray(TPM_FOR_IOT_HASH_ALG, 7);
-    PCR_ReadResponse pcrVals = tpm.PCR_Read(pcrsToQuote);
+    //auto pcrsToQuote_Create = TPMS_PCR_SELECTION::GetSelectionArray(TPM_FOR_IOT_HASH_ALG, 7);
+    auto pcrsToQuote_Create = vector<TPMS_PCR_SELECTION>();
+    PCR_ReadResponse pcrVals_Create = tpm.PCR_Read(pcrsToQuote_Create);
 
     //
     // Sign the PCR hash with the AIK
     //
 
-    QuoteResponse quote = tpm.Quote(
-        restrictedKey, decryptedSecret, TPMS_NULL_SIG_SCHEME(), pcrsToQuote);
+    QuoteResponse quote_Create = tpm.Quote(
+        restrictedKey, decryptedSecret, TPMS_NULL_SIG_SCHEME(), pcrsToQuote_Create);
     
     /*
     cout << "Loading Server Certificate... ";
@@ -768,14 +743,6 @@ void AttestationForIot()
 
     cout << "Starting Auth Session... ";
 
-    AUTH_SESSION s = tpm.StartAuthSession(TPM_SE::POLICY, TPM_FOR_IOT_HASH_ALG);
-
-    cout << "executing policy tree ... ";
-
-    p.Execute(tpm, s);
-
-    cout << "done." << endl;
-
     //
     // Create a user signing-only key in the storage hierarchy. 
     //
@@ -803,7 +770,7 @@ void AttestationForIot()
         TPMS_SENSITIVE_CREATE(NullVec, NullVec),
         templ,
         NullVec,
-        pcrsToQuote);
+        pcrsToQuote_Create);
 
     //
     // Load the new key
@@ -839,10 +806,19 @@ void AttestationForIot()
     ServerRegisterKey(
         decryptedSecret,
         restrictedPub,
-        pcrVals,
-        quote,
+        pcrVals_Create,
         newSigningKey.creationData,
         createQuote);
+
+    auto pcrsToQuote = TPMS_PCR_SELECTION::GetSelectionArray(TPM_FOR_IOT_HASH_ALG, 7);
+    PCR_ReadResponse pcrVals = tpm.PCR_Read(pcrsToQuote);
+
+    //
+    // Sign the PCR hash with the AIK
+    //
+
+    QuoteResponse quote = tpm.Quote(
+        restrictedKey, decryptedSecret, TPMS_NULL_SIG_SCHEME(), pcrsToQuote);
 
     PolicyTree p = ServerIssueLicense(
         decryptedSecret,
@@ -855,7 +831,8 @@ void AttestationForIot()
     //
 
     cout << "Executing policy tree... ";
-    //AUTH_SESSION s = tpm.StartAuthSession(TPM_SE::POLICY, TPM_FOR_IOT_HASH_ALG);
+
+    AUTH_SESSION s = tpm.StartAuthSession(TPM_SE::POLICY, TPM_FOR_IOT_HASH_ALG);
 
     s = tpm.StartAuthSession(TPM_SE::POLICY, TPM_FOR_IOT_HASH_ALG);
 
