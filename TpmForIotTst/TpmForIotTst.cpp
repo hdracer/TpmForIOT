@@ -6,6 +6,8 @@ using namespace TpmCpp;
 
 #define TPM_FOR_IOT_HASH_ALG TPM_ALG_ID::SHA1
 
+#define TRY_FAILING_PCR false
+
 //
 // Non-WIN32 initialization for TSS.CPP.
 //
@@ -360,8 +362,6 @@ void ServerRegisterKey(
         exit(1);
     }
 
-
-
     //
     // For the new child key, hash the creation data
     //
@@ -470,6 +470,46 @@ void ServerReceiveMessage(
     //
 
     // TODO
+}
+
+void
+ClientSignMessage(
+    Tpm2 &tpm,
+    TPM_HANDLE &contentKey,
+    PolicyTree &p,
+    const std::string &clientMessage,
+    ByteVec &messageHash,
+    SignResponse &sign
+)
+{
+    //
+    // Sign a message with the user key
+    //
+
+    cout << "Executing policy tree... ";
+
+    AUTH_SESSION s = tpm.StartAuthSession(TPM_SE::POLICY, TPM_FOR_IOT_HASH_ALG);
+
+    s = tpm.StartAuthSession(TPM_SE::POLICY, TPM_FOR_IOT_HASH_ALG);
+
+    p.Execute(tpm, s);
+
+    cout << "done." << endl;
+
+    cout << "Policy digest from auth Session " << tpm.PolicyGetDigest(s) << endl;
+
+    messageHash = TPMT_HA::FromHashOfString(TPM_FOR_IOT_HASH_ALG, clientMessage).digest;
+    sign = tpm._Sessions(s).Sign(   contentKey,
+                                    messageHash,
+                                    TPMS_NULL_SIG_SCHEME(),
+                                    TPMT_TK_HASHCHECK::NullTicket());
+
+    tpm.FlushContext(s);
+
+    cout << "done." << endl;
+
+    cout << "Client: message hash: " << messageHash << endl;
+
 }
 
 LPCWSTR l_pwszServerCertHash = L"5a9c2c4f3639185eacc306096dfc87e5a97ac799";
@@ -710,28 +750,6 @@ void AttestationForIot()
     QuoteResponse quote_Create = tpm.Quote(
         restrictedKey, decryptedSecret, TPMS_NULL_SIG_SCHEME(), pcrsToQuote_Create);
     
-    /*
-    cout << "Loading Server Certificate... ";
-    PCCERT_CONTEXT pAuthorityCert = LoadServerCertificate();
-
-    cout << "Converting Certificate to tpm public key... ";
-    TPMT_PUBLIC authorityPubKey = ConvertCertificateToTPMTPub(pAuthorityCert);
-    */
-
-
-    /*
-    TPMT_PUBLIC authorityTempl = TPMT_PUBLIC(TPM_FOR_IOT_HASH_ALG,
-                                             TPMA_OBJECT::sign | TPMA_OBJECT::userWithAuth,
-                                             NullVec,
-                                             TPMS_RSA_PARMS(
-                                                 TPMT_SYM_DEF_OBJECT::NullObject(),
-                                                 TPMS_SCHEME_RSASSA(TPM_FOR_IOT_HASH_ALG), 2048, 65537),
-                                             TPM2B_PUBLIC_KEY_RSA(NullVec));
-    TSS_KEY authorityKey;
-    authorityKey.publicPart = authorityTempl;
-    authorityKey.CreateKey();
-    */
-
     TPMT_PUBLIC authorityPubKey;
 
     if (!ServerGetAuthorityPublicKey(authorityPubKey))
@@ -740,8 +758,6 @@ void AttestationForIot()
     }
 
     ByteVec policyAuthDigest = GeneratePolicyAuthorizeDigest(authorityPubKey);
-
-    cout << "Starting Auth Session... ";
 
     //
     // Create a user signing-only key in the storage hierarchy. 
@@ -810,7 +826,10 @@ void AttestationForIot()
         newSigningKey.creationData,
         createQuote);
 
+    UINT32 resettablePcr = 16;
+
     auto pcrsToQuote = TPMS_PCR_SELECTION::GetSelectionArray(TPM_FOR_IOT_HASH_ALG, 7);
+    pcrsToQuote.push_back(TPMS_PCR_SELECTION(TPM_FOR_IOT_HASH_ALG, resettablePcr));
     PCR_ReadResponse pcrVals = tpm.PCR_Read(pcrsToQuote);
 
     //
@@ -826,36 +845,18 @@ void AttestationForIot()
         pcrVals,
         quote);
 
-    //
-    // Sign a message with the user key
-    //
-
-    cout << "Executing policy tree... ";
-
-    AUTH_SESSION s = tpm.StartAuthSession(TPM_SE::POLICY, TPM_FOR_IOT_HASH_ALG);
-
-    s = tpm.StartAuthSession(TPM_SE::POLICY, TPM_FOR_IOT_HASH_ALG);
-
-    p.Execute(tpm, s);
-
-    cout << "done." << endl;
-
-    cout << "Policy digest from auth Session " << tpm.PolicyGetDigest(s) << endl;
-
     std::string clientMessage("some message or telemetry data");
-    ByteVec messageHash = TPMT_HA::FromHashOfString(
-        TPM_FOR_IOT_HASH_ALG, clientMessage).digest;
-    auto sign = tpm._Sessions(s).Sign(
+
+    ByteVec messageHash;
+
+    SignResponse sign;
+
+    ClientSignMessage(tpm,
         keyToCertify,
+        p,
+        clientMessage,
         messageHash,
-        TPMS_NULL_SIG_SCHEME(),
-        TPMT_TK_HASHCHECK::NullTicket());
-
-    tpm.FlushContext(s);
-
-    cout << "done." << endl;
-
-    cout << "Client: message hash: " << messageHash << endl;
+        sign);
 
     //
     // Send the signed message to the server
@@ -865,6 +866,20 @@ void AttestationForIot()
         userSigningPub,
         clientMessage,
         *sign.signature);
+
+    if (TRY_FAILING_PCR)
+    {
+        cout << "Changing resettable PCR and trying to use the policy and key." << endl;
+
+        tpm.PCR_Event(TPM_HANDLE::PcrHandle(resettablePcr), ByteVec{ 1, 2, 3 });
+
+        ClientSignMessage(tpm,
+            keyToCertify,
+            p,
+            clientMessage,
+            messageHash,
+            sign);
+    }
 
     //
     // Save the message signing key to be reused until the PCR(s) change(s)
