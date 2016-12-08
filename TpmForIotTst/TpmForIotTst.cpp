@@ -512,6 +512,64 @@ ClientSignMessage(
 
 }
 
+ActivationData ServerGetActivationWire(
+    ByteVec &bufClientEkPub,
+    ByteVec &nameOfKeyToActivate)
+{
+    TPMT_PUBLIC clientEkPub;
+    
+    clientEkPub.FromBuf(bufClientEkPub);
+
+    return ServerGetActivation(clientEkPub, nameOfKeyToActivate);
+}
+
+void ServerRegisterKeyWire(
+    ByteVec &bufServerSecret,
+    ByteVec &bufClientRestrictedPub,
+    ByteVec &bufClientPcrVals,
+    ByteVec &bufClientKeyCreation,
+    ByteVec &bufClientKeyQuote)
+{
+    TPMT_PUBLIC clientRestrictedPub;
+    PCR_ReadResponse clientPcrVals;
+    TPMS_CREATION_DATA clientKeyCreation;
+    CertifyCreationResponse clientKeyQuote;
+
+    clientRestrictedPub.FromBuf(bufClientRestrictedPub);
+    clientPcrVals.FromBuf(bufClientPcrVals);
+    clientKeyCreation.FromBuf(bufClientKeyCreation);
+    clientKeyQuote.FromBuf(bufClientKeyQuote);
+
+    ServerRegisterKey(bufServerSecret,
+                      clientRestrictedPub,
+                      clientPcrVals,
+                      clientKeyCreation,
+                      clientKeyQuote);
+}
+
+/*
+ByteVec ServerIssueLicenseWire(
+    ByteVec bufServerSecret,
+    ByteVec bufClientRestrictedPub,
+    ByteVec bufClientPcrVals,
+    ByteVec bufClientPcrQuote)
+{
+    TPMT_PUBLIC clientRestrictedPub;
+    PCR_ReadResponse clientPcrVals;
+    QuoteResponse clientPcrQuote;
+
+    clientRestrictedPub.FromBuf(bufClientPcrQuote);
+    clientPcrVals.FromBuf(bufClientPcrVals);
+    clientPcrQuote.FromBuf(bufClientPcrQuote);
+
+    PolicyTree p = ServerIssueLicense(bufServerSecret,
+                                      clientRestrictedPub,
+                                      clientPcrVals,
+                                      clientPcrQuote);
+    
+}
+*/
+
 LPCWSTR l_pwszServerCertHash = L"5a9c2c4f3639185eacc306096dfc87e5a97ac799";
 
 PCCERT_CONTEXT LoadServerCertificate()
