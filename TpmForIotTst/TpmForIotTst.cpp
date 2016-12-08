@@ -6,7 +6,7 @@ using namespace TpmCpp;
 
 #define TPM_FOR_IOT_HASH_ALG TPM_ALG_ID::SHA1
 
-#define TRY_FAILING_PCR false
+#define TRY_FAILING_PCR true
 
 //
 // Non-WIN32 initialization for TSS.CPP.
@@ -828,6 +828,8 @@ void AttestationForIot()
 
     UINT32 resettablePcr = 16;
 
+    tpm.PCR_Reset(TPM_HANDLE::PcrHandle(resettablePcr));
+
     auto pcrsToQuote = TPMS_PCR_SELECTION::GetSelectionArray(TPM_FOR_IOT_HASH_ALG, 7);
     pcrsToQuote.push_back(TPMS_PCR_SELECTION(TPM_FOR_IOT_HASH_ALG, resettablePcr));
     PCR_ReadResponse pcrVals = tpm.PCR_Read(pcrsToQuote);
@@ -873,12 +875,45 @@ void AttestationForIot()
 
         tpm.PCR_Event(TPM_HANDLE::PcrHandle(resettablePcr), ByteVec{ 1, 2, 3 });
 
+        bool expected_error_seen = false;
+
+        try {
+            ClientSignMessage(tpm,
+                keyToCertify,
+                p,
+                clientMessage,
+                messageHash,
+                sign);
+        } catch (const system_error& e) {
+            cout << "Unknown system error." << endl;
+            cout << "\tsystem error message: " << e.what();
+            cout << "\tsystem error code: " << e.code() << endl;
+            expected_error_seen = true;
+        } catch (const exception& e) {
+            cout << "Unknown exception caught." << endl;
+            cout << "\tException message: " << e.what() << endl;
+        }
+
+        if (expected_error_seen)
+        {
+            cout << "ClientSignMessage threw exception as expected." << endl;
+        }
+        else {
+            cout << "ClientSignMessage did not throw exception as expected." << endl;
+            exit(1);
+        }
+
+        cout << "Resetting PCR and trying again." << endl;
+        tpm.PCR_Reset(TPM_HANDLE::PcrHandle(resettablePcr));
+
         ClientSignMessage(tpm,
             keyToCertify,
             p,
             clientMessage,
             messageHash,
             sign);
+
+        cout << "Signing message after PCR Reset succeeded." << endl;
     }
 
     //
