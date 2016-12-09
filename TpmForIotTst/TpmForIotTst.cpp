@@ -391,7 +391,7 @@ void ServerRegisterKey(
 
 }
 
-PolicyTree ServerIssueLicense(
+RawPolicy ServerIssueLicense(
     ByteVec &serverSecret,
     TPMT_PUBLIC &clientRestrictedPub,
     PCR_ReadResponse &clientPcrVals,
@@ -428,7 +428,7 @@ PolicyTree ServerIssueLicense(
         exit(1);
     }
 
-    return GeneratePolicy(*g_pAuthorityKey, clientPcrVals.pcrValues, qInfo->pcrSelect);
+    return GenerateRawPolicy(*g_pAuthorityKey, clientPcrVals.pcrValues, qInfo->pcrSelect);
 }
 
 void ServerReceiveMessage(
@@ -547,8 +547,7 @@ void ServerRegisterKeyWire(
                       clientKeyQuote);
 }
 
-/*
-ByteVec ServerIssueLicenseWire(
+RawPolicy ServerIssueLicenseWire(
     ByteVec bufServerSecret,
     ByteVec bufClientRestrictedPub,
     ByteVec bufClientPcrVals,
@@ -562,13 +561,52 @@ ByteVec ServerIssueLicenseWire(
     clientPcrVals.FromBuf(bufClientPcrVals);
     clientPcrQuote.FromBuf(bufClientPcrQuote);
 
-    PolicyTree p = ServerIssueLicense(bufServerSecret,
-                                      clientRestrictedPub,
-                                      clientPcrVals,
-                                      clientPcrQuote);
-    
+    return ServerIssueLicense(  bufServerSecret,
+                                clientRestrictedPub,
+                                clientPcrVals,
+                                clientPcrQuote);    
 }
-*/
+
+void ServerReceiveMessageWire(
+    ByteVec &bufClientSigningPub,
+    const std::string &clientMessage,
+    ByteVec &bufMessageSig)
+{
+    TPMT_PUBLIC clientSigningPub;
+    TPMU_SIGNATURE messageSig;
+
+    clientSigningPub.FromBuf(bufClientSigningPub);
+    messageSig.FromBuf(bufMessageSig);
+
+    ServerReceiveMessage(clientSigningPub,
+                         clientMessage,
+                         messageSig);
+}
+
+void
+ClientSignMessageWire(
+    Tpm2 &tpm,
+    TPM_HANDLE &contentKey,
+    RawPolicy &rawPolicy,
+    const std::string &clientMessage,
+    ByteVec &messageHash,
+    ByteVec &bufSignature
+)
+{
+    PolicyTree p;
+    SignResponse signature;
+
+    p = RawPolicyToTree(rawPolicy);
+
+    signature.FromBuf(bufSignature);
+
+    ClientSignMessage(tpm,
+                      contentKey,
+                      p,
+                      clientMessage,
+                      messageHash,
+                      signature);
+}
 
 LPCWSTR l_pwszServerCertHash = L"5a9c2c4f3639185eacc306096dfc87e5a97ac799";
 
@@ -899,11 +937,13 @@ void AttestationForIot()
     QuoteResponse quote = tpm.Quote(
         restrictedKey, decryptedSecret, TPMS_NULL_SIG_SCHEME(), pcrsToQuote);
 
-    PolicyTree p = ServerIssueLicense(
+    RawPolicy rawPolicy = ServerIssueLicense(
         decryptedSecret,
         restrictedPub,
         pcrVals,
         quote);
+
+    PolicyTree p = RawPolicyToTree(rawPolicy);
 
     std::string clientMessage("some message or telemetry data");
 

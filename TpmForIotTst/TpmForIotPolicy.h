@@ -9,6 +9,15 @@ typedef struct _RawPolicy {
     TpmCpp::ByteVec bufSignature;
 } RawPolicy;
 
+TpmCpp::PolicyTree RawPolicyToTree(
+    RawPolicy   &rawPolicy);
+
+RawPolicy GenerateRawPolicy(
+    TpmCpp::TSS_KEY& authorityKey,
+    vector<TpmCpp::TPM2B_DIGEST>& pcrValues,
+    vector<TpmCpp::TPMS_PCR_SELECTION>& pcrs);
+
+
 TpmCpp::PolicyTree GeneratePolicy(
     TpmCpp::TSS_KEY& authorityKey,
     vector<TpmCpp::TPM2B_DIGEST>& pcrValues,
